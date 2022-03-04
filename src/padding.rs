@@ -1,9 +1,10 @@
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use core::fmt;
+use digest::typenum::NonZero;
+use std::error::Error;
 
 use digest::{Digest, DynDigest};
-use rand::RngCore;
 
 use crate::hash::Hash;
 
@@ -30,7 +31,7 @@ pub enum PaddingScheme {
     },
     /// Sign and Verify using PSS padding.
     PSS {
-        salt_rng: Box<dyn RngCore>,
+        salt_rng: Box<Error>,
         digest: Box<dyn DynDigest>,
         salt_len: Option<usize>,
     },
@@ -140,7 +141,7 @@ impl PaddingScheme {
         }
     }
 
-    pub fn new_pss<T: 'static + Digest + DynDigest, S: 'static + RngCore>(rng: S) -> Self {
+    pub fn new_pss<T: 'static + Digest + DynDigest, S: 'static + Error>(rng: S) -> Self {
         PaddingScheme::PSS {
             salt_rng: Box::new(rng),
             digest: Box::new(T::new()),
@@ -148,7 +149,7 @@ impl PaddingScheme {
         }
     }
 
-    pub fn new_pss_with_salt<T: 'static + Digest + DynDigest, S: 'static + RngCore>(
+    pub fn new_pss_with_salt<T: 'static + Digest + DynDigest, S: 'static + Error>(
         rng: S,
         len: usize,
     ) -> Self {

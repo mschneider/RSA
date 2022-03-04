@@ -2,7 +2,6 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use digest::DynDigest;
-use rand::{Rng, RngCore};
 use subtle::ConstantTimeEq;
 
 use crate::algorithms::mgf1_xor;
@@ -24,43 +23,6 @@ pub fn verify<PK: PublicKey>(
     let mut em = pub_key.raw_encryption_primitive(sig, em_len)?;
 
     emsa_pss_verify(hashed, &mut em, em_bits, None, digest)
-}
-
-/// SignPSS calculates the signature of hashed using RSASSA-PSS [1].
-/// Note that hashed must be the result of hashing the input message using the
-/// given hash function. The opts argument may be nil, in which case sensible
-/// defaults are used.
-pub fn sign<T: RngCore + ?Sized, S: Rng, SK: PrivateKey>(
-    rng: &mut T,
-    blind_rng: Option<&mut S>,
-    priv_key: &SK,
-    hashed: &[u8],
-    salt_len: Option<usize>,
-    digest: &mut dyn DynDigest,
-) -> Result<Vec<u8>> {
-    let salt_len = salt_len.unwrap_or_else(|| priv_key.size() - 2 - digest.output_size());
-
-    let mut salt = vec![0; salt_len];
-    rng.fill(&mut salt[..]);
-
-    sign_pss_with_salt(blind_rng, priv_key, hashed, &salt, digest)
-}
-
-/// signPSSWithSalt calculates the signature of hashed using PSS [1] with specified salt.
-/// Note that hashed must be the result of hashing the input message using the
-/// given hash function. salt is a random sequence of bytes whose length will be
-/// later used to verify the signature.
-fn sign_pss_with_salt<T: Rng, SK: PrivateKey>(
-    blind_rng: Option<&mut T>,
-    priv_key: &SK,
-    hashed: &[u8],
-    salt: &[u8],
-    digest: &mut dyn DynDigest,
-) -> Result<Vec<u8>> {
-    let em_bits = priv_key.n().bits() - 1;
-    let em = emsa_pss_encode(hashed, em_bits, salt, digest)?;
-
-    priv_key.raw_decryption_primitive(blind_rng, &em, priv_key.size())
 }
 
 fn emsa_pss_encode(
@@ -240,7 +202,6 @@ mod test {
 
     use num_bigint::BigUint;
     use num_traits::{FromPrimitive, Num};
-    use rand::{rngs::StdRng, SeedableRng};
     use sha1::{Digest, Sha1};
     use std::time::SystemTime;
 
@@ -265,59 +226,5 @@ mod test {
                 BigUint::from_str_radix("94560208308847015747498523884063394671606671904944666360068158221458669711639", 10).unwrap()
             ],
         )
-    }
-
-    #[test]
-    fn test_verify_pss() {
-        let priv_key = get_private_key();
-
-        let tests = [[
-            "test\n", "6f86f26b14372b2279f79fb6807c49889835c204f71e38249b4c5601462da8ae30f26ffdd9c13f1c75eee172bebe7b7c89f2f1526c722833b9737d6c172a962f"
-        ]];
-        let pub_key: RsaPublicKey = priv_key.into();
-
-        for test in &tests {
-            let digest = Sha1::digest(test[0].as_bytes()).to_vec();
-            let sig = hex::decode(test[1]).unwrap();
-
-            let seed = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap();
-            let rng = StdRng::seed_from_u64(seed.as_secs());
-            pub_key
-                .verify(PaddingScheme::new_pss::<Sha1, _>(rng), &digest, &sig)
-                .expect("failed to verify");
-        }
-    }
-
-    #[test]
-    fn test_sign_and_verify_roundtrip() {
-        let priv_key = get_private_key();
-
-        let tests = ["test\n"];
-
-        let seed = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap();
-        let rng = StdRng::seed_from_u64(seed.as_secs());
-
-        for test in &tests {
-            let digest = Sha1::digest(test.as_bytes()).to_vec();
-            let sig = priv_key
-                .sign_blinded(
-                    &mut rng.clone(),
-                    PaddingScheme::new_pss::<Sha1, _>(rng.clone()),
-                    &digest,
-                )
-                .expect("failed to sign");
-
-            priv_key
-                .verify(
-                    PaddingScheme::new_pss::<Sha1, _>(rng.clone()),
-                    &digest,
-                    &sig,
-                )
-                .expect("failed to verify");
-        }
     }
 }

@@ -1,33 +1,10 @@
 use alloc::vec;
 use alloc::vec::Vec;
-use rand::Rng;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
 use crate::errors::{Error, Result};
 use crate::hash::Hash;
 use crate::key::{self, PrivateKey, PublicKey};
-
-// Encrypts the given message with RSA and the padding
-// scheme from PKCS#1 v1.5.  The message must be no longer than the
-// length of the public modulus minus 11 bytes.
-#[inline]
-pub fn encrypt<R: Rng, PK: PublicKey>(rng: &mut R, pub_key: &PK, msg: &[u8]) -> Result<Vec<u8>> {
-    key::check_public(pub_key)?;
-
-    let k = pub_key.size();
-    if msg.len() > k - 11 {
-        return Err(Error::MessageTooLong);
-    }
-
-    // EM = 0x00 || 0x02 || PS || 0x00 || M
-    let mut em = vec![0u8; k];
-    em[1] = 2;
-    non_zero_random_bytes(rng, &mut em[2..k - msg.len() - 1]);
-    em[k - msg.len() - 1] = 0;
-    em[k - msg.len()..].copy_from_slice(msg);
-
-    pub_key.raw_encryption_primitive(&em, pub_key.size())
-}
 
 /// Decrypts a plaintext using RSA and the padding scheme from PKCS#1 v1.5.
 // If an `rng` is passed, it uses RSA blinding to avoid timing side-channel attacks.
@@ -38,7 +15,7 @@ pub fn encrypt<R: Rng, PK: PublicKey>(rng: &mut R, pub_key: &PK, msg: &[u8]) -> 
 // forge signatures as if they had the private key. See
 // `decrypt_session_key` for a way of solving this problem.
 #[inline]
-pub fn decrypt<R: Rng, SK: PrivateKey>(
+pub fn decrypt<R, SK: PrivateKey>(
     rng: Option<&mut R>,
     priv_key: &SK,
     ciphertext: &[u8],
@@ -67,7 +44,7 @@ pub fn decrypt<R: Rng, SK: PrivateKey>(
 // messages to signatures and identify the signed messages. As ever,
 // signatures provide authenticity, not confidentiality.
 #[inline]
-pub fn sign<R: Rng, SK: PrivateKey>(
+pub fn sign<R, SK: PrivateKey>(
     rng: Option<&mut R>,
     priv_key: &SK,
     hash: Option<&Hash>,
@@ -151,7 +128,7 @@ fn hash_info(hash: Option<&Hash>, digest_len: usize) -> Result<(usize, &'static 
 /// in order to maintain constant memory access patterns. If the plaintext was
 /// valid then index contains the index of the original message in em.
 #[inline]
-fn decrypt_inner<R: Rng, SK: PrivateKey>(
+fn decrypt_inner<R, SK: PrivateKey>(
     rng: Option<&mut R>,
     priv_key: &SK,
     ciphertext: &[u8],
@@ -193,22 +170,6 @@ fn decrypt_inner<R: Rng, SK: PrivateKey>(
     Ok((valid.unwrap_u8(), em, index))
 }
 
-/// Fills the provided slice with random values, which are guranteed
-/// to not be zero.
-#[inline]
-fn non_zero_random_bytes<R: Rng>(rng: &mut R, data: &mut [u8]) {
-    rng.fill(data);
-
-    for el in data {
-        if *el == 0u8 {
-            // TODO: break after a certain amount of time
-            while *el == 0u8 {
-                *el = rng.gen();
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,26 +178,10 @@ mod tests {
     use num_bigint::BigUint;
     use num_traits::FromPrimitive;
     use num_traits::Num;
-    use rand::{rngs::StdRng, SeedableRng};
     use sha1::{Digest, Sha1};
     use std::time::SystemTime;
 
     use crate::{Hash, PaddingScheme, PublicKey, PublicKeyParts, RsaPrivateKey, RsaPublicKey};
-
-    #[test]
-    fn test_non_zero_bytes() {
-        for _ in 0..10 {
-            let seed = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap();
-            let mut rng = StdRng::seed_from_u64(seed.as_secs());
-            let mut b = vec![0u8; 512];
-            non_zero_random_bytes(&mut rng, &mut b);
-            for el in &b {
-                assert_ne!(*el, 0u8);
-            }
-        }
-    }
 
     fn get_private_key() -> RsaPrivateKey {
         // In order to generate new test vectors you'll need the PEM form of this key:
@@ -287,64 +232,6 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(out, test[1].as_bytes());
-        }
-    }
-
-    #[test]
-    fn test_encrypt_decrypt_pkcs1v15() {
-        let seed = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap();
-        let mut rng = StdRng::seed_from_u64(seed.as_secs());
-        let priv_key = get_private_key();
-        let k = priv_key.size();
-
-        for i in 1..100 {
-            let mut input: Vec<u8> = (0..i * 8).map(|_| rng.gen()).collect();
-            if input.len() > k - 11 {
-                input = input[0..k - 11].to_vec();
-            }
-
-            let pub_key: RsaPublicKey = priv_key.clone().into();
-            let ciphertext = encrypt(&mut rng, &pub_key, &input).unwrap();
-            assert_ne!(input, ciphertext);
-            let blind: bool = rng.gen();
-            let blinder = if blind { Some(&mut rng) } else { None };
-            let plaintext = decrypt(blinder, &priv_key, &ciphertext).unwrap();
-            assert_eq!(input, plaintext);
-        }
-    }
-
-    #[test]
-    fn test_sign_pkcs1v15() {
-        let priv_key = get_private_key();
-
-        let tests = [[
-            "Test.\n", "a4f3fa6ea93bcdd0c57be020c1193ecbfd6f200a3d95c409769b029578fa0e336ad9a347600e40d3ae823b8c7e6bad88cc07c1d54c3a1523cbbb6d58efc362ae"
-	]];
-
-        for test in &tests {
-            let digest = Sha1::digest(test[0].as_bytes()).to_vec();
-            let expected = hex::decode(test[1]).unwrap();
-
-            let out = priv_key
-                .sign(PaddingScheme::new_pkcs1v15_sign(Some(Hash::SHA1)), &digest)
-                .unwrap();
-            assert_ne!(out, digest);
-            assert_eq!(out, expected);
-
-            let seed = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap();
-            let mut rng = StdRng::seed_from_u64(seed.as_secs());
-            let out2 = priv_key
-                .sign_blinded(
-                    &mut rng,
-                    PaddingScheme::new_pkcs1v15_sign(Some(Hash::SHA1)),
-                    &digest,
-                )
-                .unwrap();
-            assert_eq!(out2, expected);
         }
     }
 

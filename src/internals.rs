@@ -3,7 +3,6 @@ use alloc::vec;
 use alloc::vec::Vec;
 use num_bigint::{BigInt, BigUint, IntoBigInt, IntoBigUint, ModInverse, RandBigInt, ToBigInt};
 use num_traits::{One, Signed, Zero};
-use rand::Rng;
 use zeroize::Zeroize;
 
 use crate::errors::{Error, Result};
@@ -18,8 +17,8 @@ pub fn encrypt<K: PublicKeyParts>(key: &K, m: &BigUint) -> BigUint {
 /// Performs raw RSA decryption with no padding, resulting in a plaintext `BigUint`.
 /// Peforms RSA blinding if an `Rng` is passed.
 #[inline]
-pub fn decrypt<R: Rng>(
-    mut rng: Option<&mut R>,
+pub fn decrypt<R>(
+    mut _rng: Option<&mut R>,
     priv_key: &RsaPrivateKey,
     c: &BigUint,
 ) -> Result<BigUint> {
@@ -33,8 +32,8 @@ pub fn decrypt<R: Rng>(
 
     let mut ir = None;
 
-    let c = if let Some(ref mut rng) = rng {
-        let (blinded, unblinder) = blind(rng, priv_key, c);
+    let c = if let Some(ref mut _rng) = _rng {
+        let (blinded, unblinder) = blind(_rng, priv_key, c);
         ir = Some(unblinder);
         Cow::Owned(blinded)
     } else {
@@ -108,7 +107,7 @@ pub fn decrypt<R: Rng>(
 /// Peforms RSA blinding if an `Rng` is passed.
 /// This will also check for errors in the CRT computation.
 #[inline]
-pub fn decrypt_and_check<R: Rng>(
+pub fn decrypt_and_check<R>(
     rng: Option<&mut R>,
     priv_key: &RsaPrivateKey,
     c: &BigUint,
@@ -127,7 +126,7 @@ pub fn decrypt_and_check<R: Rng>(
 }
 
 /// Returns the blinded c, along with the unblinding factor.
-pub fn blind<R: Rng, K: PublicKeyParts>(rng: &mut R, key: &K, c: &BigUint) -> (BigUint, BigUint) {
+pub fn blind<R, K: PublicKeyParts>(_rng: &mut R, key: &K, c: &BigUint) -> (BigUint, BigUint) {
     // Blinding involves multiplying c by r^e.
     // Then the decryption operation performs (m^e * r^e)^d mod n
     // which equals mr mod n. The factor of r can then be removed
@@ -137,7 +136,7 @@ pub fn blind<R: Rng, K: PublicKeyParts>(rng: &mut R, key: &K, c: &BigUint) -> (B
     let mut ir: Option<BigInt>;
     let unblinder;
     loop {
-        r = rng.gen_biguint_below(key.n());
+        r = BigUint::zero(); // rng.gen_biguint_below(key.n());
         if r.is_zero() {
             r = BigUint::one();
         }

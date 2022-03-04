@@ -1,7 +1,6 @@
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
-use rand::Rng;
 
 use digest::DynDigest;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
@@ -14,54 +13,6 @@ use crate::key::{self, PrivateKey, PublicKey};
 // TODO: This is the maximum for SHA-1, unclear from the RFC what the values are for other hashing functions.
 const MAX_LABEL_LEN: u64 = 2_305_843_009_213_693_951;
 
-/// Encrypts the given message with RSA and the padding
-/// scheme from [PKCS#1 OAEP](https://datatracker.ietf.org/doc/html/rfc3447#section-7.1.1).  The message must be no longer than the
-/// length of the public modulus minus (2+ 2*hash.size()).
-#[inline]
-pub fn encrypt<R: Rng, K: PublicKey>(
-    rng: &mut R,
-    pub_key: &K,
-    msg: &[u8],
-    digest: &mut dyn DynDigest,
-    mgf_digest: &mut dyn DynDigest,
-    label: Option<String>,
-) -> Result<Vec<u8>> {
-    key::check_public(pub_key)?;
-
-    let k = pub_key.size();
-
-    let h_size = digest.output_size();
-
-    if msg.len() + 2 * h_size + 2 > k {
-        return Err(Error::MessageTooLong);
-    }
-
-    let label = label.unwrap_or_default();
-    if label.len() as u64 > MAX_LABEL_LEN {
-        return Err(Error::LabelTooLong);
-    }
-
-    let mut em = vec![0u8; k];
-
-    let (_, payload) = em.split_at_mut(1);
-    let (seed, db) = payload.split_at_mut(h_size);
-    rng.fill(seed);
-
-    // Data block DB =  pHash || PS || 01 || M
-    let db_len = k - h_size - 1;
-
-    digest.update(label.as_bytes());
-    let p_hash = digest.finalize_reset();
-    db[0..h_size].copy_from_slice(&*p_hash);
-    db[db_len - msg.len() - 1] = 1;
-    db[db_len - msg.len()..].copy_from_slice(msg);
-
-    mgf1_xor(db, mgf_digest, seed);
-    mgf1_xor(seed, mgf_digest, db);
-
-    pub_key.raw_encryption_primitive(&em, pub_key.size())
-}
-
 /// Decrypts a plaintext using RSA and the padding scheme from [pkcs1# OAEP](https://datatracker.ietf.org/doc/html/rfc3447#section-7.1.2)
 /// If an `rng` is passed, it uses RSA blinding to avoid timing side-channel attacks.
 ///
@@ -71,7 +22,7 @@ pub fn encrypt<R: Rng, K: PublicKey>(
 /// forge signatures as if they had the private key. See
 /// `decrypt_session_key` for a way of solving this problem.
 #[inline]
-pub fn decrypt<R: Rng, SK: PrivateKey>(
+pub fn decrypt<R, SK: PrivateKey>(
     rng: Option<&mut R>,
     priv_key: &SK,
     ciphertext: &[u8],
@@ -95,7 +46,7 @@ pub fn decrypt<R: Rng, SK: PrivateKey>(
 /// `rng` is given. It returns one or zero in valid that indicates whether the
 /// plaintext was correctly structured.
 #[inline]
-fn decrypt_inner<R: Rng, SK: PrivateKey>(
+fn decrypt_inner<R, SK: PrivateKey>(
     rng: Option<&mut R>,
     priv_key: &SK,
     ciphertext: &[u8],
