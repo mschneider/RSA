@@ -1,7 +1,7 @@
 use alloc::vec;
 use digest::DynDigest;
 use num_bigint::traits::ModInverse;
-use num_bigint::{BigUint, RandPrime};
+use num_bigint::BigUint;
 #[allow(unused_imports)]
 use num_traits::Float;
 use num_traits::{FromPrimitive, One, Zero};
@@ -78,25 +78,25 @@ pub fn generate_multi_prime_key_with_exp<R>(
     let d_final: BigUint;
 
     'next: loop {
-        let mut todo = bit_size;
+        let mut _todo = bit_size;
         // `gen_prime` should set the top two bits in each prime.
         // Thus each prime has the form
         //   p_i = 2^bitlen(p_i) × 0.11... (in base 2).
         // And the product is:
-        //   P = 2^todo × α
+        //   P = 2^_todo × α
         // where α is the product of nprimes numbers of the form 0.11...
         //
         // If α < 1/2 (which can happen for nprimes > 2), we need to
-        // shift todo to compensate for lost bits: the mean value of 0.11...
-        // is 7/8, so todo + shift - nprimes * log2(7/8) ~= bits - 1/2
+        // shift _todo to compensate for lost bits: the mean value of 0.11...
+        // is 7/8, so _todo + shift - nprimes * log2(7/8) ~= bits - 1/2
         // will give good results.
         if nprimes >= 7 {
-            todo += (nprimes - 2) / 5;
+            _todo += (nprimes - 2) / 5;
         }
 
-        for (i, prime) in primes.iter_mut().enumerate() {
-            // *prime = rng.gen_prime(todo / (nprimes - i));
-            todo -= prime.bits();
+        for (_i, prime) in primes.iter_mut().enumerate() {
+            // *prime = rng.gen_prime(_todo / (nprimes - i));
+            _todo -= prime.bits();
         }
 
         // Makes sure that primes is pairwise unequal.

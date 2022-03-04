@@ -1,4 +1,3 @@
-use alloc::vec;
 use alloc::vec::Vec;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
@@ -28,45 +27,6 @@ pub fn decrypt<R, SK: PrivateKey>(
     }
 
     Ok(out[index as usize..].to_vec())
-}
-
-// Calculates the signature of hashed using
-// RSASSA-PKCS1-V1_5-SIGN from RSA PKCS#1 v1.5. Note that `hashed` must
-// be the result of hashing the input message using the given hash
-// function. If hash is `None`, hashed is signed directly. This isn't
-// advisable except for interoperability.
-//
-// If `rng` is not `None` then RSA blinding will be used to avoid timing
-// side-channel attacks.
-//
-// This function is deterministic. Thus, if the set of possible
-// messages is small, an attacker may be able to build a map from
-// messages to signatures and identify the signed messages. As ever,
-// signatures provide authenticity, not confidentiality.
-#[inline]
-pub fn sign<R, SK: PrivateKey>(
-    rng: Option<&mut R>,
-    priv_key: &SK,
-    hash: Option<&Hash>,
-    hashed: &[u8],
-) -> Result<Vec<u8>> {
-    let (hash_len, prefix) = hash_info(hash, hashed.len())?;
-
-    let t_len = prefix.len() + hash_len;
-    let k = priv_key.size();
-    if k < t_len + 11 {
-        return Err(Error::MessageTooLong);
-    }
-
-    // EM = 0x00 || 0x01 || PS || 0x00 || T
-    let mut em = vec![0xff; k];
-    em[0] = 0;
-    em[1] = 1;
-    em[k - t_len - 1] = 0;
-    em[k - t_len..k - hash_len].copy_from_slice(&prefix);
-    em[k - hash_len..k].copy_from_slice(hashed);
-
-    priv_key.raw_decryption_primitive(rng, &em, priv_key.size())
 }
 
 /// Verifies an RSA PKCS#1 v1.5 signature.

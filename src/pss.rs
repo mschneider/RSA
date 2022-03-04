@@ -1,12 +1,9 @@
-use alloc::vec;
-use alloc::vec::Vec;
-
 use digest::DynDigest;
 use subtle::ConstantTimeEq;
 
 use crate::algorithms::mgf1_xor;
 use crate::errors::{Error, Result};
-use crate::key::{PrivateKey, PublicKey};
+use crate::key::PublicKey;
 
 pub fn verify<PK: PublicKey>(
     pub_key: &PK,
@@ -23,79 +20,6 @@ pub fn verify<PK: PublicKey>(
     let mut em = pub_key.raw_encryption_primitive(sig, em_len)?;
 
     emsa_pss_verify(hashed, &mut em, em_bits, None, digest)
-}
-
-fn emsa_pss_encode(
-    m_hash: &[u8],
-    em_bits: usize,
-    salt: &[u8],
-    hash: &mut dyn DynDigest,
-) -> Result<Vec<u8>> {
-    // See [1], section 9.1.1
-    let h_len = hash.output_size();
-    let s_len = salt.len();
-    let em_len = (em_bits + 7) / 8;
-
-    // 1. If the length of M is greater than the input limitation for the
-    //     hash function (2^61 - 1 octets for SHA-1), output "message too
-    //     long" and stop.
-    //
-    // 2.  Let mHash = Hash(M), an octet string of length hLen.
-    if m_hash.len() != h_len {
-        return Err(Error::InputNotHashed);
-    }
-
-    // 3. If em_len < h_len + s_len + 2, output "encoding error" and stop.
-    if em_len < h_len + s_len + 2 {
-        // TODO: Key size too small
-        return Err(Error::Internal);
-    }
-
-    let mut em = vec![0; em_len];
-
-    let (db, h) = em.split_at_mut(em_len - h_len - 1);
-    let h = &mut h[..(em_len - 1) - db.len()];
-
-    // 4. Generate a random octet string salt of length s_len; if s_len = 0,
-    //     then salt is the empty string.
-    //
-    // 5.  Let
-    //       M' = (0x)00 00 00 00 00 00 00 00 || m_hash || salt;
-    //
-    //     M' is an octet string of length 8 + h_len + s_len with eight
-    //     initial zero octets.
-    //
-    // 6.  Let H = Hash(M'), an octet string of length h_len.
-    let prefix = [0u8; 8];
-
-    hash.update(&prefix);
-    hash.update(m_hash);
-    hash.update(salt);
-
-    let hashed = hash.finalize_reset();
-    h.copy_from_slice(&hashed);
-
-    // 7.  Generate an octet string PS consisting of em_len - s_len - h_len - 2
-    //     zero octets. The length of PS may be 0.
-    //
-    // 8.  Let DB = PS || 0x01 || salt; DB is an octet string of length
-    //     emLen - hLen - 1.
-    db[em_len - s_len - h_len - 2] = 0x01;
-    db[em_len - s_len - h_len - 1..].copy_from_slice(salt);
-
-    // 9.  Let dbMask = MGF(H, emLen - hLen - 1).
-    //
-    // 10. Let maskedDB = DB \xor dbMask.
-    mgf1_xor(db, hash, &h);
-
-    // 11. Set the leftmost 8 * em_len - em_bits bits of the leftmost octet in
-    //     maskedDB to zero.
-    db[0] &= 0xFF >> (8 * em_len - em_bits);
-
-    // 12. Let EM = maskedDB || H || 0xbc.
-    em[em_len - 1] = 0xBC;
-
-    Ok(em)
 }
 
 fn emsa_pss_verify(
@@ -198,12 +122,10 @@ fn emsa_pss_verify(
 
 #[cfg(test)]
 mod test {
-    use crate::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
+    use crate::RsaPrivateKey;
 
     use num_bigint::BigUint;
     use num_traits::{FromPrimitive, Num};
-    use sha1::{Digest, Sha1};
-    use std::time::SystemTime;
 
     fn get_private_key() -> RsaPrivateKey {
         // In order to generate new test vectors you'll need the PEM form of this key:

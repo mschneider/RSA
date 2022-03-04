@@ -1,5 +1,4 @@
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 
 use digest::DynDigest;
@@ -7,7 +6,7 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 use crate::algorithms::mgf1_xor;
 use crate::errors::{Error, Result};
-use crate::key::{self, PrivateKey, PublicKey};
+use crate::key::{self, PrivateKey};
 
 // 2**61 -1 (pow is not const yet)
 // TODO: This is the maximum for SHA-1, unclear from the RFC what the values are for other hashing functions.

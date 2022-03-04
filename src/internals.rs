@@ -1,7 +1,7 @@
 use alloc::borrow::Cow;
 use alloc::vec;
 use alloc::vec::Vec;
-use num_bigint::{BigInt, BigUint, IntoBigInt, IntoBigUint, ModInverse, RandBigInt, ToBigInt};
+use num_bigint::{BigInt, BigUint, IntoBigInt, IntoBigUint, ModInverse, ToBigInt};
 use num_traits::{One, Signed, Zero};
 use zeroize::Zeroize;
 

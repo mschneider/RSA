@@ -1,7 +1,6 @@
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use core::fmt;
-use digest::typenum::NonZero;
 use std::error::Error;
 
 use digest::{Digest, DynDigest};
@@ -31,7 +30,7 @@ pub enum PaddingScheme {
     },
     /// Sign and Verify using PSS padding.
     PSS {
-        salt_rng: Box<Error>,
+        salt_rng: Box<dyn Error>,
         digest: Box<dyn DynDigest>,
         salt_len: Option<usize>,
     },
