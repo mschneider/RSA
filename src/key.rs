@@ -1,4 +1,6 @@
 use alloc::vec::Vec;
+use borsh::{BorshDeserialize, BorshSerialize};
+
 use core::ops::Deref;
 use num_bigint::traits::ModInverse;
 use num_bigint::Sign::Plus;
@@ -35,7 +37,7 @@ pub trait PublicKeyParts {
 pub trait PrivateKey: DecryptionPrimitive + PublicKeyParts {}
 
 /// Represents the public part of an RSA key.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Hash, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -47,12 +49,12 @@ pub struct RsaPublicKey {
 }
 
 /// Represents a whole RSA key, public and private parts.
-#[derive(Debug, Clone)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate")
 )]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct RsaPrivateKey {
     /// Public components of the private key.
     pubkey_components: RsaPublicKey,
@@ -62,6 +64,7 @@ pub struct RsaPrivateKey {
     pub(crate) primes: Vec<BigUint>,
     /// precomputed values to speed up private operations
     #[cfg_attr(feature = "serde", serde(skip))]
+    #[borsh_skip]
     pub(crate) precomputed: Option<PrecomputedValues>,
 }
 
