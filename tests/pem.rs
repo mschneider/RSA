@@ -11,6 +11,18 @@ use rsa::{
 };
 use std::fs;
 
+/// RSA-128 asn1 private key encoded as PEM
+#[cfg(feature = "pem")]
+const RSA_128_PRIV_PEM: &str = include_str!("examples/pem/rsa128-priv.pem");
+
+/// RSA-192 asn1 private key encoded as PEM
+#[cfg(feature = "pem")]
+const RSA_192_PRIV_PEM: &str = include_str!("examples/pem/rsa192-priv.pem");
+
+/// RSA-256 asn1 private key encoded as PEM
+#[cfg(feature = "pem")]
+const RSA_256_PRIV_PEM: &str = include_str!("examples/pem/rsa256-priv.pem");
+
 /// RSA-512 asn1 private key encoded as PEM
 #[cfg(feature = "pem")]
 const RSA_512_PRIV_PEM: &str = include_str!("examples/pem/rsa512-priv.pem");
@@ -18,6 +30,18 @@ const RSA_512_PRIV_PEM: &str = include_str!("examples/pem/rsa512-priv.pem");
 /// RSA-1024 asn1 private key encoded as PEM
 #[cfg(feature = "pem")]
 const RSA_1024_PRIV_PEM: &str = include_str!("examples/pem/rsa1024-priv.pem");
+
+/// RSA-128 asn1 public key encoded as PEM
+#[cfg(feature = "pem")]
+const RSA_128_PUB_PEM: &str = include_str!("examples/pem/rsa128-pub.pem");
+
+/// RSA-192 asn1 public key encoded as PEM
+#[cfg(feature = "pem")]
+const RSA_192_PUB_PEM: &str = include_str!("examples/pem/rsa192-pub.pem");
+
+/// RSA-256 asn1 public key encoded as PEM
+#[cfg(feature = "pem")]
+const RSA_256_PUB_PEM: &str = include_str!("examples/pem/rsa256-pub.pem");
 
 /// RSA-512 asn1 public key encoded as PEM
 #[cfg(feature = "pem")]
@@ -193,6 +217,90 @@ fn encrypt_rsa512() {
 
     fs::write(
         "./tests/examples/pem/rsa512-ciphertext.bin",
+        ciphertext.clone(),
+    )
+    .unwrap();
+
+    let recovered_message = secret_key
+        .decrypt(PaddingScheme::new_pkcs1v15_encrypt(), &ciphertext)
+        .unwrap();
+    assert_eq!(recovered_message, message);
+}
+
+#[test]
+#[cfg(feature = "pem")]
+fn encrypt_rsa256() {
+    let mut rng = OsRng;
+    let secret_key = RsaPrivateKey::from_pkcs1_pem(RSA_256_PRIV_PEM).unwrap();
+    let public_key = RsaPublicKey::from_public_key_pem(RSA_256_PUB_PEM).unwrap();
+    let message = b"The quick brown fox j";
+
+    let ciphertext = public_key
+        .encrypt(
+            &mut rng,
+            PaddingScheme::new_pkcs1v15_encrypt(),
+            &message[..],
+        )
+        .unwrap();
+
+    fs::write(
+        "./tests/examples/pem/rsa256-ciphertext.bin",
+        ciphertext.clone(),
+    )
+    .unwrap();
+
+    let recovered_message = secret_key
+        .decrypt(PaddingScheme::new_pkcs1v15_encrypt(), &ciphertext)
+        .unwrap();
+    assert_eq!(recovered_message, message);
+}
+
+#[test]
+#[cfg(feature = "pem")]
+fn encrypt_rsa192() {
+    let mut rng = OsRng;
+    let secret_key = RsaPrivateKey::from_pkcs1_pem(RSA_192_PRIV_PEM).unwrap();
+    let public_key = RsaPublicKey::from_public_key_pem(RSA_192_PUB_PEM).unwrap();
+    let message = b"The quick bro";
+
+    let ciphertext = public_key
+        .encrypt(
+            &mut rng,
+            PaddingScheme::new_pkcs1v15_encrypt(),
+            &message[..],
+        )
+        .unwrap();
+
+    fs::write(
+        "./tests/examples/pem/rsa192-ciphertext.bin",
+        ciphertext.clone(),
+    )
+    .unwrap();
+
+    let recovered_message = secret_key
+        .decrypt(PaddingScheme::new_pkcs1v15_encrypt(), &ciphertext)
+        .unwrap();
+    assert_eq!(recovered_message, message);
+}
+
+#[test]
+#[cfg(feature = "pem")]
+fn encrypt_rsa128() {
+    let mut rng = OsRng;
+    let secret_key = RsaPrivateKey::from_pkcs1_pem(RSA_128_PRIV_PEM).unwrap();
+    let public_key = RsaPublicKey::from_public_key_pem(RSA_128_PUB_PEM).unwrap();
+    let message = b"The q";
+
+    let ciphertext = public_key
+        .encrypt(
+            &mut rng,
+            PaddingScheme::new_pkcs1v15_encrypt(),
+            &message[..],
+        )
+        .unwrap();
+
+    fs::write(
+        "./tests/examples/pem/rsa128-ciphertext.bin",
         ciphertext.clone(),
     )
     .unwrap();
