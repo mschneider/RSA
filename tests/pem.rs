@@ -27,6 +27,10 @@ const RSA_256_PRIV_PEM: &str = include_str!("examples/pem/rsa256-priv.pem");
 #[cfg(feature = "pem")]
 const RSA_512_PRIV_PEM: &str = include_str!("examples/pem/rsa512-priv.pem");
 
+/// RSA-768 asn1 private key encoded as PEM
+#[cfg(feature = "pem")]
+const RSA_768_PRIV_PEM: &str = include_str!("examples/pem/rsa768-priv.pem");
+
 /// RSA-1024 asn1 private key encoded as PEM
 #[cfg(feature = "pem")]
 const RSA_1024_PRIV_PEM: &str = include_str!("examples/pem/rsa1024-priv.pem");
@@ -46,6 +50,10 @@ const RSA_256_PUB_PEM: &str = include_str!("examples/pem/rsa256-pub.pem");
 /// RSA-512 asn1 public key encoded as PEM
 #[cfg(feature = "pem")]
 const RSA_512_PUB_PEM: &str = include_str!("examples/pem/rsa512-pub.pem");
+
+/// RSA-768 asn1 public key encoded as PEM
+#[cfg(feature = "pem")]
+const RSA_768_PUB_PEM: &str = include_str!("examples/pem/rsa768-pub.pem");
 
 /// RSA-1024 asn1 public key encoded as PEM
 #[cfg(feature = "pem")]
@@ -189,6 +197,34 @@ fn encrypt_rsa1024() {
 
     fs::write(
         "./tests/examples/pem/rsa1024-ciphertext.bin",
+        ciphertext.clone(),
+    )
+    .unwrap();
+
+    let recovered_message = secret_key
+        .decrypt(PaddingScheme::new_pkcs1v15_encrypt(), &ciphertext)
+        .unwrap();
+    assert_eq!(recovered_message, message);
+}
+
+#[test]
+#[cfg(feature = "pem")]
+fn encrypt_rsa768() {
+    let mut rng = OsRng;
+    let secret_key = RsaPrivateKey::from_pkcs1_pem(RSA_768_PRIV_PEM).unwrap();
+    let public_key = RsaPublicKey::from_public_key_pem(RSA_768_PUB_PEM).unwrap();
+    let message = b"The quick brown fox jumps over the lazy dog";
+
+    let ciphertext = public_key
+        .encrypt(
+            &mut rng,
+            PaddingScheme::new_pkcs1v15_encrypt(),
+            &message[..],
+        )
+        .unwrap();
+
+    fs::write(
+        "./tests/examples/pem/rsa768-ciphertext.bin",
         ciphertext.clone(),
     )
     .unwrap();
